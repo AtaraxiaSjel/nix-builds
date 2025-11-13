@@ -1,0 +1,38 @@
+name: "Build flake packages"
+
+on:
+  push:
+    paths:
+      - "flake.*"
+  workflow_dispatch:
+
+jobs:
+  nix-build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true
+          docker-images: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          swap-storage: false
+          tool-cache: false
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Install nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Setup magic nix cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v16
+        with:
+          name: "ataraxia-builds"
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+      - name: Build package
+        run: nix build . -L --show-trace --print-out-paths
