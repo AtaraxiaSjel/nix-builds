@@ -44,5 +44,15 @@
           ];
         };
       }
-    );
+    )
+    // {
+      homeManagerModules = {
+        elephant = inputs.elephant.homeManagerModules.default;
+        walker = inputs.walker.homeManagerModules.default;
+      };
+      nixosModules = {
+        elephant = inputs.elephant.nixosModules.default;
+        walker = inputs.walker.nixosModules.default;
+      };
+    };
 }
