@@ -257,11 +257,11 @@
         "rocksdb": "rocksdb"
       },
       "locked": {
-        "lastModified": 1766083283,
-        "narHash": "sha256-pFP0iVgUZydqDC4d4qSi+za5eDXf7TsE5A+TJd/5QGI=",
+        "lastModified": 1766344887,
+        "narHash": "sha256-NKq5bEn40nHIewmaVPQ2aFJEZ4jkmnXDAZ/lL3rD8iQ=",
         "owner": "matrix-construct",
         "repo": "tuwunel",
-        "rev": "7115fb2796f4b3756432295220fcde7d26ebd5f5",
+        "rev": "af570c481e81aad205e9b84dadda0191962fa67e",
         "type": "github"
       },
       "original": {
@@ -284,11 +284,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1765305269,
-        "narHash": "sha256-2OQsyZaO2Uy6EnDLcDZGBbDEa0X1WuZ4NoZ5kW52OeA=",
+        "lastModified": 1766324177,
+        "narHash": "sha256-7Y8Pqn12ovZ2nH1y+rxMbliUPhY4cu/iB0cwSNHTMZY=",
         "owner": "abenz1267",
         "repo": "walker",
-        "rev": "132004947c5c877f510177d8c68f754e37169ecc",
+        "rev": "fb6152710c450a4b81342db42857de4aea049716",
         "type": "github"
       },
       "original": {
