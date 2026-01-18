@@ -257,11 +257,11 @@
         "rocksdb": "rocksdb"
       },
       "locked": {
-        "lastModified": 1768294054,
-        "narHash": "sha256-1580rQtg9BjVWjvTtOhUEv5L8yNhPqJ0UzH+Wc68mhs=",
+        "lastModified": 1768641099,
+        "narHash": "sha256-IDLOLfEydF6b8SirWmTwb7ffOhykPx3FrmeCZrwDtHQ=",
         "owner": "matrix-construct",
         "repo": "tuwunel",
-        "rev": "3426b824a0cf930dece1f696e73d72e04601bf11",
+        "rev": "85ac256786a77d0f49b57a1e1284f0eb4268f9f2",
         "type": "github"
       },
       "original": {
