@@ -43,11 +43,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1770317012,
-        "narHash": "sha256-hs1Re7ltWYFBsiwDsK3Qb3/KgZ4E2HY7cFB/M8JWSu4=",
+        "lastModified": 1770707813,
+        "narHash": "sha256-GvmaKo66EtV0o3lxnQ+78uoamxg8/8WsnenTzLpugHs=",
         "owner": "abenz1267",
         "repo": "elephant",
-        "rev": "1ddd708c577507ad00997375bbc888a59302a35d",
+        "rev": "8cce354abe95a5ade8061abb8490de91d2d763e0",
         "type": "github"
       },
       "original": {
