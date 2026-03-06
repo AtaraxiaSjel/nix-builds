@@ -150,11 +150,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1772643971,
-        "narHash": "sha256-+bllfMsclzbAAPMZTm3K9G/a5lG+s6l18/AyyYLPSIE=",
+        "lastModified": 1772704124,
+        "narHash": "sha256-thXluFpTTSJDwkJXInd22dx+h9QyjlkcNlbd4bQf0aE=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "400de68cd101e8cfebffea121397683caf7f5a34",
+        "rev": "289c8a834fbf87af1f01cb78f479537ef5219a0b",
         "type": "github"
       },
       "original": {
@@ -257,11 +257,11 @@
         "rocksdb": "rocksdb"
       },
       "locked": {
-        "lastModified": 1772518364,
-        "narHash": "sha256-7+VqLx709dK/ElGnv4Zu0Q9CQV1Yyrjwu9hb/+GTbe8=",
+        "lastModified": 1772654211,
+        "narHash": "sha256-BApHHt9933fIlG3oovCjhQd3lh5KFw/1FyvRu8sK70c=",
         "owner": "matrix-construct",
         "repo": "tuwunel",
-        "rev": "59791db213220dd5894e50df8aeec94e4025bd04",
+        "rev": "b20ad8a6228bbff85c7fdef20ec62ac6ffc84223",
         "type": "github"
       },
       "original": {
