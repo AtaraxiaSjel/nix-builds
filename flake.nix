@@ -36,6 +36,8 @@
           };
           elephant = inputs.elephant.packages.${system}.default;
           walker = inputs.walker.packages.${system}.default;
+          # obs-studio without browser support to save some space
+          obs-studio = (pkgs.obs-studio.override { browserSupport = false; });
         };
         devShells.default = pkgs.mkShellNoCC {
           packages = with pkgs; [
