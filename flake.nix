@@ -39,7 +39,7 @@
           processorOpt = "zen4";
           bbr3 = true;
           postPatch = ''
-            substituteInPlace --replace-fail arch/x86/kernel/umip.c \
+            substituteInPlace arch/x86/kernel/umip.c --replace-fail \
               "u16 dummy_limit = 0;" "u16 dummy_limit = 0x7F;"
           '';
         };
