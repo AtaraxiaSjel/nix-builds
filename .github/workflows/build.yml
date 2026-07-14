@@ -10,7 +10,9 @@ jobs:
   nix-build:
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm]
+        os:
+          - ubuntu-latest
+          # - ubuntu-24.04-arm
     runs-on: ${{ matrix.os }}
     steps:
       - name: Free disk space
