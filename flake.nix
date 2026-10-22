@@ -68,6 +68,13 @@
           in
           helpers.kernelModuleLLVMOverride (pkgs.linuxKernel.packagesFor kernel);
 
+        jdks = [
+          pkgs.temurin-jre-bin-8
+          pkgs.temurin-jre-bin-17
+          pkgs.temurin-jre-bin-21
+          pkgs.temurin-jre-bin-25
+        ];
+
         built = {
           cachyos-kernel-x86_64-v3 =
             nix-cachyos-kernel.packages.${system}.linux-cachyos-latest-lto-x86_64-v3.override
@@ -88,12 +95,16 @@
           kernelPackages-x86_64-v3 = kernelPackages built.cachyos-kernel-x86_64-v3;
           kernelPackages-zen4 = kernelPackages built.cachyos-kernel-zen4;
 
-          inherit (arkivist.packages.${system}) arkivist;
           inherit (cadence.packages.${system}) cadence;
-          inherit (freesmlauncher.packages.${system}) freesmlauncher;
           inherit (quadpin.packages.${system}) quadpin;
           # The package attribute name differs from the input name here.
           determinate-nix = determinate-nix.packages.${system}.nix;
+          arkivist = arkivist.packages.${system}.arkivist.override {
+            inherit jdks;
+          };
+          freesmlauncher = freesmlauncher.packages.${system}.freesmlauncher.override {
+            inherit jdks;
+          };
 
           # OBS without browser support to save some space.
           obs-studio = pkgs.obs-studio.override { browserSupport = false; };
