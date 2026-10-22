@@ -60,6 +60,7 @@
       system:
       let
         pkgs = import nixpkgs { inherit system; };
+        inherit (pkgs.lib) callPackageWith;
 
         # The module set for a CachyOS kernel, mirroring upstream's
         # kernel-cachyos/packages.nix: `linuxKernel.packagesFor` extended
@@ -71,22 +72,37 @@
           kernel:
           let
             helpers = pkgs.callPackage "${nix-cachyos-kernel.outPath}/helpers.nix" { };
+            # Toolchain flags for out-of-tree module builds, in the same
+            # shape nixpkgs' kernel packages sets use (pkgs/top-level/
+            # linux-kernels.nix): kernel.commonMakeFlags plus KBUILD_OUTPUT.
+            # zfs's genericBuild turns these into KERNEL_${f} configure
+            # flags; without them its kernel tests and module build run
+            # kbuild with the default CC (`gcc`), which does not exist in
+            # the Clang+LTO stdenv, and configure fails with "checking
+            # whether CONFIG_MODULES is defined... no".
+            zfsModuleMakeFlags = kernel.commonMakeFlags ++ [
+              "KBUILD_OUTPUT=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
+            ];
             # Same expression and pinned source CachyOS upstream uses
             # (zfs-cachyos/version.json: CachyOS/zfs fork, 2.4.4).
             # All latest-family kernels use zfsVariant = "linux-cachyos".
+            # `callPackage` is scope-extended so that nixpkgs' zfs
+            # genericBuild picks up `kernelModuleMakeFlags` from it (the
+            # upstream wrapper file only forwards `kernel` itself).
             zfsCachyos = pkgs.callPackage "${nix-cachyos-kernel.outPath}/zfs-cachyos" {
               inputs = {
-                nixpkgs = { outPath = nixpkgs.outPath; };
+                nixpkgs = {
+                  outPath = nixpkgs.outPath;
+                };
               };
               variant = "linux-cachyos";
+              callPackage = callPackageWith (pkgs // { kernelModuleMakeFlags = zfsModuleMakeFlags; });
             };
           in
           helpers.kernelModuleLLVMOverride (
             (pkgs.linuxKernel.packagesFor kernel).extend (
-              _final: prev: {
-                zfs_cachyos = zfsCachyos.override {
-                  kernel = prev.kernel;
-                };
+              _final: _prev: {
+                zfs_cachyos = zfsCachyos.override { kernel = kernel; };
               }
             )
           );
