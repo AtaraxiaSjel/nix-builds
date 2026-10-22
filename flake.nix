@@ -88,21 +88,21 @@
           kernelPackages-x86_64-v3 = kernelPackages built.cachyos-kernel-x86_64-v3;
           kernelPackages-zen4 = kernelPackages built.cachyos-kernel-zen4;
 
-          arkivist = arkivist.packages.${system}.arkivist;
-          cadence = cadence.packages.${system}.cadence;
+          inherit (arkivist.packages.${system}) arkivist;
+          inherit (cadence.packages.${system}) cadence;
+          inherit (freesmlauncher.packages.${system}) freesmlauncher;
+          inherit (quadpin.packages.${system}) quadpin;
+          # The package attribute name differs from the input name here.
           determinate-nix = determinate-nix.packages.${system}.nix;
-          freesmlauncher = freesmlauncher.packages.${system}.freesmlauncher;
-          quadpin = quadpin.packages.${system}.quadpin;
 
           # OBS without browser support to save some space.
           obs-studio = pkgs.obs-studio.override { browserSupport = false; };
         };
-      in
-      {
+
+        # The package set exposed as flake `packages`. The raw kernelPackages
+        # sets stay out of it: nix-fast-build traverses attrsets and would
+        # try to evaluate/build every out-of-tree module in nixpkgs.
         packages = {
-          # Do NOT expose the full kernelPackages set here: nix-fast-build
-          # traverses attrsets and would try to evaluate/build every
-          # out-of-tree module in nixpkgs.
           inherit (built)
             arkivist
             cachyos-kernel-x86_64-v3
@@ -115,27 +115,19 @@
             ;
         };
 
-        # Everything the overlay exposes, per system.
-        legacyPackages = {
-          # Kernel and its module set. The attribute names follow
-          # xddxdd/nix-cachyos-kernel, so `pkgs.cachyosKernels.*` works the
-          # same way for both overlays.
+        # Everything the overlay exposes, per system: the packages plus the
+        # kernel/module set.
+        legacyPackages = packages // {
           cachyosKernels = {
             linux-cachyos-latest-lto-x86_64-v3 = built.cachyos-kernel-x86_64-v3;
             linux-cachyos-latest-lto-zen4 = built.cachyos-kernel-zen4;
             linuxPackages-cachyos-latest-lto-x86_64-v3 = built.kernelPackages-x86_64-v3;
             linuxPackages-cachyos-latest-lto-zen4 = built.kernelPackages-zen4;
           };
-
-          inherit (built)
-            arkivist
-            cadence
-            determinate-nix
-            freesmlauncher
-            obs-studio
-            quadpin
-            ;
         };
+      in
+      {
+        inherit packages legacyPackages;
 
         devShells.default = pkgs.mkShellNoCC {
           packages = with pkgs; [
@@ -150,22 +142,22 @@
       overlays = {
         # All packages are fixed derivations built by this repository, so
         # they are *not* re-derived against the consumer's nixpkgs.
-        default =
-          final: prev:
-          let
-            system = final.stdenv.hostPlatform.system;
-          in
-          {
-            inherit (self.legacyPackages.${system})
-              arkivist
-              cachyosKernels
-              cadence
-              determinate-nix
-              freesmlauncher
-              obs-studio
-              quadpin
-              ;
-          };
+        #
+        # NOTE: the attributes are inherited explicitly on purpose. Simply
+        # returning `self.legacyPackages.<system>` wholesale (or shuffling
+        # it via mapAttrs/removeAttrs) makes the consumer's stdenv booter
+        # recurse infinitely.
+        default = final: prev: {
+          inherit (self.legacyPackages.${final.stdenv.hostPlatform.system})
+            arkivist
+            cachyosKernels
+            cadence
+            determinate-nix
+            freesmlauncher
+            obs-studio
+            quadpin
+            ;
+        };
       };
     };
 }
