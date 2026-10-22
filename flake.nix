@@ -115,6 +115,13 @@
         ];
 
         built = {
+          # Oldest cpu i care about
+          cachyos-kernel-server = nix-cachyos-kernel.packages.${system}.linux-cachyos-server-lto.override {
+            # TODO: find how to change to ivybridge
+            processorOpt = "x86_64-v2";
+            # processorOpt = "ivybridge";
+            bbr3 = true;
+          };
           cachyos-kernel-x86_64-v3 =
             nix-cachyos-kernel.packages.${system}.linux-cachyos-latest-lto-x86_64-v3.override
               {
@@ -131,6 +138,7 @@
           # The kernel together with its out-of-tree module set.
           # `kernelModuleLLVMOverride` fixes the compilation of some
           # out-of-tree modules with Clang+LTO kernels.
+          kernelPackages-server = kernelPackages built.cachyos-kernel-server;
           kernelPackages-x86_64-v3 = kernelPackages built.cachyos-kernel-x86_64-v3;
           kernelPackages-zen4 = kernelPackages built.cachyos-kernel-zen4;
 
@@ -138,6 +146,7 @@
           # are the derivations exposed by the module sets as
           # `zfs_cachyos` (see kernelPackages above), listed as standalone
           # packages so CI pre-builds them.
+          zfs-cachyos-server = built.kernelPackages-server.zfs_cachyos;
           zfs-cachyos-x86_64-v3 = built.kernelPackages-x86_64-v3.zfs_cachyos;
           zfs-cachyos-zen4 = built.kernelPackages-zen4.zfs_cachyos;
 
@@ -162,6 +171,7 @@
         packages = {
           inherit (built)
             arkivist
+            cachyos-kernel-server
             cachyos-kernel-x86_64-v3
             cachyos-kernel-zen4
             cadence
@@ -169,6 +179,7 @@
             freesmlauncher
             obs-studio
             quadpin
+            zfs-cachyos-server
             zfs-cachyos-x86_64-v3
             zfs-cachyos-zen4
             ;
@@ -178,8 +189,10 @@
         # kernel/module set.
         legacyPackages = packages // {
           cachyosKernels = {
+            linux-cachyos-server-lto = built.cachyos-kernel-server;
             linux-cachyos-latest-lto-x86_64-v3 = built.cachyos-kernel-x86_64-v3;
             linux-cachyos-latest-lto-zen4 = built.cachyos-kernel-zen4;
+            linuxPackages-cachyos-server-lto = built.kernelPackages-server;
             linuxPackages-cachyos-latest-lto-x86_64-v3 = built.kernelPackages-x86_64-v3;
             linuxPackages-cachyos-latest-lto-zen4 = built.kernelPackages-zen4;
           };
@@ -215,6 +228,7 @@
             freesmlauncher
             obs-studio
             quadpin
+            zfs-cachyos-server
             zfs-cachyos-x86_64-v3
             zfs-cachyos-zen4
             ;
