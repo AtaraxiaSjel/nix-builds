@@ -1,8 +1,6 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs?ref=nixpkgs-unstable";
-    systems.url = "github:nix-systems/default-linux";
-    flake-utils.url = "github:numtide/flake-utils?ref=main";
     nix-cachyos-kernel = {
       url = "github:xddxdd/nix-cachyos-kernel/release";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -23,13 +21,26 @@
     {
       self,
       nixpkgs,
-      flake-utils,
       nix-cachyos-kernel,
       freesmlauncher,
       determinate-nix,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (
+    let
+      forAllSystems =
+        f:
+        builtins.foldl'
+          (
+            acc: system:
+            acc // (nixpkgs.lib.mapAttrs (key: value: (acc.${key} or { }) // { ${system} = value; }) (f system))
+          )
+          { }
+          [
+            "x86_64-linux"
+            "aarch64-linux"
+          ];
+    in
+    forAllSystems (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
