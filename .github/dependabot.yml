@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keep the GitHub Actions up to date.
+  # The Determinate Nix actions are tagged per release (v3.23.3) with a moving
+  # `v3` tag for the major version, so Dependabot picks up new Nix releases.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

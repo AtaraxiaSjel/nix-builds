@@ -1,0 +1,142 @@
+name: "Update flake inputs"
+
+on:
+  workflow_dispatch:
+  # Once a week (Sunday 06:24 UTC): bump flake.lock (kernel and other custom
+  # inputs) *and* the release-tag pins in flake.nix (`?ref=` values).
+  # The build workflow then runs on the merged commit and only advances
+  # the `release` branch if every package built successfully.
+  schedule:
+    - cron: "24 6 * * 0"
+
+permissions:
+  contents: write
+  pull-requests: write
+  # Required by Determinate Nix to authenticate with FlakeHub
+  # (see Determinatesystems/determinate-nix-action README).
+  id-token: write
+
+jobs:
+  nix-flake-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        uses: navikt/github-app-token-generator@v1
+        id: get-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          token: ${{ steps.get-token.outputs.token }}
+      - name: Install nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Bump pinned release tags in flake.nix
+        id: tags
+        env:
+          GH_TOKEN: ${{ steps.get-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          # Discover the release-pinned inputs automatically: every direct
+          # input of this flake that carries an explicit `?ref=` is a
+          # candidate. Only refs that exist as a git *tag* are release pins -
+          # branch refs (e.g. nix-cachyos-kernel's "release") are left alone.
+          nix flake metadata --json > /tmp/flake-metadata.json
+          python3 .github/scripts/find-tag-pins.py /tmp/flake-metadata.json > /tmp/tag-pins.tsv
+          CHANGED=""
+          while IFS=$'\t' read -r name repo ref; do
+            [[ -z "$name" ]] && continue
+            if ! gh api "repos/${repo}/git/ref/tags/${ref}" >/dev/null 2>&1; then
+              echo "${name}: ref '${ref}' is not a tag (branch?), skipping"
+              continue
+            fi
+            latest="$(gh api "repos/${repo}/releases/latest" --jq .tag_name 2>/dev/null || true)"
+            if [[ -z "$latest" ]]; then
+              echo "::warning::no published release for ${repo}, skipping ${name}"
+              continue
+            fi
+            cp flake.nix /tmp/flake.nix.before
+            if ! python3 .github/scripts/bump-tag.py flake.nix "${name}" "${latest}"; then
+              echo "::error::failed to bump ${name} pin"
+              exit 1
+            fi
+            if ! diff -q /tmp/flake.nix.before flake.nix >/dev/null; then
+              echo "${name}: ${ref} -> ${latest}"
+              CHANGED="${CHANGED:+$CHANGED,}${name}=${latest}"
+            else
+              echo "${name}: already at ${latest}"
+            fi
+          done < /tmp/tag-pins.tsv
+          echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
+      - name: Update flake.lock
+        env:
+          NIX_CONFIG: "access-tokens = github.com = ${{ steps.get-token.outputs.token }}"
+        run: nix flake update
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to lock or pins."
+            exit 0
+          fi
+          git config user.name "AtaraxiaSjel (bot)"
+          git config user.email "ataraxiasjel@users.noreply.github.com"
+          BRANCH=update_flake_lock_action
+          git checkout -b "$BRANCH"
+          git add flake.nix flake.lock
+          TITLE="chore(flake): bump inputs"
+          if [[ -n "${{ steps.tags.outputs.changed }}" ]]; then
+            TITLE="${TITLE} (release tags: ${{ steps.tags.outputs.changed }})"
+            git commit -m "${TITLE}
+
+          Package tags bumped via .github/scripts/bump-tag.py from latest
+          GitHub releases: ${{ steps.tags.outputs.changed }}"
+          else
+            git commit -m "${TITLE}"
+          fi
+          # Reuse the same PR branch from previous runs if present
+          git push --force origin "$BRANCH"
+          echo "branch=${BRANCH}" >> "$GITHUB_ENV"
+          if [[ -n "${{ steps.tags.outputs.changed }}" ]]; then
+            echo "tag-note= (release tags: ${{ steps.tags.outputs.changed }})" >> "$GITHUB_ENV"
+          else
+            echo "tag-note=" >> "$GITHUB_ENV"
+          fi
+      - name: Create PR and enable auto-merge
+        run: |
+          set -e
+          PR_NUM="$(gh pr list --head "$BRANCH" --json number --jq '.[0].number')"
+          if [[ -z "$PR_NUM" ]]; then
+            PR_NUM="$(gh pr create --head "$BRANCH" \
+              --assignee AtaraxiaSjel \
+              --title "chore(flake): bump inputs${TAG_NOTE}" \
+              --body "Auto-generated flake.lock + release-tag bump. Release branch is updated only if the build passes.")"
+          fi
+          gh pr merge --auto --merge "$PR_NUM"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Notify Telegram on failure
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [[ -z "${TG_TOKEN//[[:space:]]/}" ]]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN is empty, skipping Telegram notify. Set it in Settings → Secrets → Actions."
+            exit 0
+          fi
+          if [[ -z "${TG_CHAT//[[:space:]]/}" ]]; then
+            echo "::warning::TELEGRAM_CHAT_ID is empty, skipping Telegram notify. Set it in Settings → Secrets → Actions."
+            exit 0
+          fi
+          MSG="⚠️ nix-builds flake.lock update failed (weekly run). Log: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          HTTP_CODE="$(curl -sS -o /tmp/tg-response.txt -w '%{http_code}' -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=${MSG}" \
+            --data-urlencode "disable_notification=true" || echo "curl-failed")"
+          echo "Telegram HTTP code: $HTTP_CODE"
+          head -c 1000 /tmp/tg-response.txt 2>/dev/null; echo
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::warning::Telegram notify failed with HTTP $HTTP_CODE (see body above). Check TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID."
+          fi
