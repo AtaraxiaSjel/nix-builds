@@ -16,14 +16,30 @@
       inputs.flake-parts.url = "github:nix-systems/empty";
       inputs.git-hooks-nix.url = "github:nix-systems/empty";
     };
+    # Personal packages
+    arkivist = {
+      url = "git+https://git.ataraxiadev.com/ataraxiadev/arkivist?ref=refs/tags/v0.5.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    cadence = {
+      url = "git+https://git.ataraxiadev.com/ataraxiadev/cadence?ref=refs/tags/v0.2.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    quadpin = {
+      url = "git+https://git.ataraxiadev.com/ataraxiadev/quadpin?ref=refs/tags/v1.0.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
   outputs =
     {
       self,
       nixpkgs,
-      nix-cachyos-kernel,
-      freesmlauncher,
+      arkivist,
+      cadence,
       determinate-nix,
+      freesmlauncher,
+      nix-cachyos-kernel,
+      quadpin,
       ...
     }:
     let
@@ -72,11 +88,11 @@
           kernelPackages-x86_64-v3 = kernelPackages built.cachyos-kernel-x86_64-v3;
           kernelPackages-zen4 = kernelPackages built.cachyos-kernel-zen4;
 
-          # FreesmLauncher, built from its latest release tag.
-          freesmlauncher = freesmlauncher.packages.${system}.freesmlauncher;
-
-          # Determinate's nix, built from its latest release tag.
+          arkivist = arkivist.packages.${system}.arkivist;
+          cadence = cadence.packages.${system}.cadence;
           determinate-nix = determinate-nix.packages.${system}.nix;
+          freesmlauncher = freesmlauncher.packages.${system}.freesmlauncher;
+          quadpin = quadpin.packages.${system}.quadpin;
 
           # OBS without browser support to save some space.
           obs-studio = pkgs.obs-studio.override { browserSupport = false; };
@@ -88,11 +104,14 @@
           # traverses attrsets and would try to evaluate/build every
           # out-of-tree module in nixpkgs.
           inherit (built)
+            arkivist
             cachyos-kernel-x86_64-v3
             cachyos-kernel-zen4
+            cadence
             determinate-nix
             freesmlauncher
             obs-studio
+            quadpin
             ;
         };
 
@@ -108,7 +127,14 @@
             linuxPackages-cachyos-latest-lto-zen4 = built.kernelPackages-zen4;
           };
 
-          inherit (built) determinate-nix freesmlauncher obs-studio;
+          inherit (built)
+            arkivist
+            cadence
+            determinate-nix
+            freesmlauncher
+            obs-studio
+            quadpin
+            ;
         };
 
         devShells.default = pkgs.mkShellNoCC {
@@ -131,10 +157,13 @@
           in
           {
             inherit (self.legacyPackages.${system})
+              arkivist
               cachyosKernels
-              freesmlauncher
+              cadence
               determinate-nix
+              freesmlauncher
               obs-studio
+              quadpin
               ;
           };
       };

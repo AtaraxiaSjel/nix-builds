@@ -38,36 +38,13 @@ jobs:
           GH_TOKEN: ${{ steps.get-token.outputs.token }}
         run: |
           set -euo pipefail
-          # Discover the release-pinned inputs automatically: every direct
-          # input of this flake that carries an explicit `?ref=` is a
-          # candidate. Only refs that exist as a git *tag* are release pins -
-          # branch refs (e.g. nix-cachyos-kernel's "release") are left alone.
+          # Bump every input pinned to a release tag in flake.nix. The script
+          # detects such pins automatically for github inputs (latest GitHub
+          # release) and git/Forgejo inputs (newest repo tag), and leaves
+          # branch refs (e.g. nix-cachyos-kernel's "?ref=release") alone.
           nix flake metadata --json > /tmp/flake-metadata.json
-          python3 .github/scripts/find-tag-pins.py /tmp/flake-metadata.json > /tmp/tag-pins.tsv
-          CHANGED=""
-          while IFS=$'\t' read -r name repo ref; do
-            [[ -z "$name" ]] && continue
-            if ! gh api "repos/${repo}/git/ref/tags/${ref}" >/dev/null 2>&1; then
-              echo "${name}: ref '${ref}' is not a tag (branch?), skipping"
-              continue
-            fi
-            latest="$(gh api "repos/${repo}/releases/latest" --jq .tag_name 2>/dev/null || true)"
-            if [[ -z "$latest" ]]; then
-              echo "::warning::no published release for ${repo}, skipping ${name}"
-              continue
-            fi
-            cp flake.nix /tmp/flake.nix.before
-            if ! python3 .github/scripts/bump-tag.py flake.nix "${name}" "${latest}"; then
-              echo "::error::failed to bump ${name} pin"
-              exit 1
-            fi
-            if ! diff -q /tmp/flake.nix.before flake.nix >/dev/null; then
-              echo "${name}: ${ref} -> ${latest}"
-              CHANGED="${CHANGED:+$CHANGED,}${name}=${latest}"
-            else
-              echo "${name}: already at ${latest}"
-            fi
-          done < /tmp/tag-pins.tsv
+          CHANGED="$(python3 .github/scripts/bump-input-pins.py /tmp/flake-metadata.json | paste -sd, -)"
+          [[ -n "$CHANGED" ]] && echo "Bumped: $CHANGED"
           echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
       - name: Update flake.lock
         env:
@@ -90,8 +67,8 @@ jobs:
             TITLE="${TITLE} (release tags: ${{ steps.tags.outputs.changed }})"
             git commit -m "${TITLE}
 
-          Package tags bumped via .github/scripts/bump-tag.py from latest
-          GitHub releases: ${{ steps.tags.outputs.changed }}"
+          Package tags bumped via .github/scripts/bump-input-pins.py from
+          latest GitHub releases / Forgejo tags: ${{ steps.tags.outputs.changed }}"
           else
             git commit -m "${TITLE}"
           fi

@@ -25,7 +25,7 @@ freesmlauncher = {
 };
 ```
 
-The weekly workflow discovers them automatically (`.github/scripts/find-tag-pins.py` reads `nix flake metadata`), and bumps each tag to the repo's latest GitHub release (`.github/scripts/bump-tag.py`) — `flake.lock` alone cannot do this, because the ref lives in `flake.nix`.
+The weekly workflow discovers them automatically (`.github/scripts/bump-input-pins.py` reads `nix flake metadata`) and bumps each pin: `github:` inputs to the repo's latest GitHub release, `git+https` inputs to the repo's newest tag — `flake.lock` alone cannot do this, because the ref lives in `flake.nix`.
 
 Only refs that exist as a git **tag** are treated as release pins; branch pins such as `nix-cachyos-kernel`'s `?ref=release` are left untouched.
 

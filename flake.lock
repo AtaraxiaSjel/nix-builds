@@ -1,5 +1,26 @@
 {
   "nodes": {
+    "arkivist": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790012438,
+        "narHash": "sha256-1WAwVYC3N0FJa1hYXxCNxqP0ap6UyJCSaXkdH+7Du2A=",
+        "ref": "refs/tags/v0.5.1",
+        "rev": "a52c4b2c79ed648497b422476c21cbadc4d8e068",
+        "revCount": 199,
+        "type": "git",
+        "url": "https://git.ataraxiadev.com/ataraxiadev/arkivist"
+      },
+      "original": {
+        "ref": "refs/tags/v0.5.1",
+        "type": "git",
+        "url": "https://git.ataraxiadev.com/ataraxiadev/arkivist"
+      }
+    },
     "bdwgc": {
       "flake": false,
       "locked": {
@@ -15,6 +36,27 @@
         "ref": "user-defined-stacks",
         "repo": "bdwgc",
         "type": "github"
+      }
+    },
+    "cadence": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787498035,
+        "narHash": "sha256-kusk2niR2f7igW8CU0tkvEeMHPDcPjfCYsKYpj/XBKA=",
+        "ref": "refs/tags/v0.2.0",
+        "rev": "9b2dc189d66ed43090866afa62cfeb8ea51e7835",
+        "revCount": 22,
+        "type": "git",
+        "url": "https://git.ataraxiadev.com/ataraxiadev/cadence"
+      },
+      "original": {
+        "ref": "refs/tags/v0.2.0",
+        "type": "git",
+        "url": "https://git.ataraxiadev.com/ataraxiadev/cadence"
       }
     },
     "determinate-nix": {
@@ -257,12 +299,36 @@
         "type": "github"
       }
     },
+    "quadpin": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1789679002,
+        "narHash": "sha256-A9Z4zbNuNC/kbtbuaJvDJOSBFaihVVdbj0Z1DxSbs7c=",
+        "ref": "refs/tags/v1.0.1",
+        "rev": "651a24b3e16d646966263a22d17d507a02be470b",
+        "revCount": 10,
+        "type": "git",
+        "url": "https://git.ataraxiadev.com/ataraxiadev/quadpin"
+      },
+      "original": {
+        "ref": "refs/tags/v1.0.1",
+        "type": "git",
+        "url": "https://git.ataraxiadev.com/ataraxiadev/quadpin"
+      }
+    },
     "root": {
       "inputs": {
+        "arkivist": "arkivist",
+        "cadence": "cadence",
         "determinate-nix": "determinate-nix",
         "freesmlauncher": "freesmlauncher",
         "nix-cachyos-kernel": "nix-cachyos-kernel",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_2",
+        "quadpin": "quadpin"
       }
     }
   },
