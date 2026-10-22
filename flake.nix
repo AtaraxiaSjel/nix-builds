@@ -54,7 +54,7 @@
 
         built = {
           cachyos-kernel-x86_64-v3 =
-            nix-cachyos-kernel.packages.${system}.linux-cachyos-kernel-x86_64-v3.override
+            nix-cachyos-kernel.packages.${system}.linux-cachyos-latest-lto-x86_64-v3.override
               {
                 bbr3 = true;
               };
