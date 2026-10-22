@@ -5,19 +5,83 @@ on:
     paths:
       - "flake.*"
   workflow_dispatch:
+    inputs:
+      packages:
+        description: "Comma-separated package names to build (empty = all; empty also updates the release branch when run on dev)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
   id-token: write
 
+# Queue instead of cancel: a killed run would lose in-flight kernel builds.
+concurrency:
+  group: build-${{ github.ref }}
+
 jobs:
-  nix-build:
+  matrix:
+    name: "Select packages"
+    # Evaluation only: cheap, no caches/disk-space steps needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      packages: ${{ steps.select.outputs.packages }}
+      full_set: ${{ steps.select.outputs.full_set }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Select packages to build
+        id: select
+        env:
+          SELECTED: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          SYS="$(nix eval --raw --impure --expr 'builtins.currentSystem')"
+          NAMES="$(nix eval --json ".#packages.${SYS}" --apply 'builtins.attrNames')"
+          if [[ -n "${SELECTED//[[:space:]]/}" ]]; then
+            SEL_JSON="$(printf '%s' "$SELECTED" | tr ',' '\n' \
+              | jq -Rsc 'split("\n") | map(gsub("^\\s+|\\s+$";"")) | map(select(length > 0))')"
+            MISSING="$(jq -rn --argjson all "$NAMES" --argjson sel "$SEL_JSON" \
+              '[ $sel[] | select(. as $p | ($all | index($p) | not)) ] | join(", ")')"
+            [[ -z "$MISSING" ]] || { echo "::error::unknown packages: $MISSING"; exit 1; }
+            MATCH="$(jq -nc --argjson all "$NAMES" --argjson sel "$SEL_JSON" \
+              '[ $all[] | select(. as $p | $sel | index($p)) ]')"
+          else
+            MATCH="$NAMES"
+          fi
+          COUNT="$(jq length <<<"$MATCH")"
+          [[ "$COUNT" -gt 0 ]] || { echo "::error::no packages left to build"; exit 1; }
+          echo "Building $COUNT packages: $MATCH"
+          echo "packages=$MATCH" >> "$GITHUB_OUTPUT"
+          # Whether this covers the whole package set — the release-branch
+          # gate in push-release only promotes flake.locks verified by a
+          # full-set run (push to dev, or a manual run without `packages`).
+          if [[ -z "${SELECTED//[[:space:]]/}" ]]; then
+            echo "full_set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_set=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: matrix
+    # One runner per package: each gets its own 6h budget and does not
+    # compete with the kernel builds for the 4 shared cores anymore.
+    # Interrupted packages are lost individually; everything else is already
+    # in the caches (pushes happen while the runner is still alive), and
+    # "Re-run failed jobs" only retries the failed matrix entries.
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
     strategy:
+      # All packages keep going despite failures.
+      fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          # - ubuntu-24.04-arm
-    runs-on: ${{ matrix.os }}
+        package: ${{ fromJSON(needs.matrix.outputs.packages) }}
+    env:
+      NIKS3_SERVER_URL: "https://nix-cache.ataraxiadev.com"
     steps:
       - name: Free disk space
         uses: jlumbroso/free-disk-space@v2
@@ -31,70 +95,96 @@ jobs:
           swap-storage: false
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          # Full history so the release branch we force-push keeps it
-          fetch-depth: 0
       - name: Install nix
         uses: DeterminateSystems/determinate-nix-action@v3
-      - name: Setup magic nix cache
+      - name: Setup flakehub cache
         uses: DeterminateSystems/flakehub-cache-action@v3
       - name: Setup Cachix
         uses: cachix/cachix-action@v17
         with:
           name: "ataraxia-builds"
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+      - name: Add niks3 as pull cache
+        run: |
+          set -euo pipefail
+          CFG="$(curl -fsS --max-time 30 "$NIKS3_SERVER_URL/api/cache-config")"
+          SUBSTITUTER="$(jq -r '.substituter_url // empty' <<<"$CFG")"
+          PUBLIC_KEYS="$(jq -r '.public_keys | join(" ")' <<<"$CFG")"
+          if [[ -z "$SUBSTITUTER" ]]; then
+            echo "::warning::niks3 does not expose a read path, skipping pull config"
+            exit 0
+          fi
+          {
+            echo "NIX_CONFIG<<EOF"
+            echo "extra-substituters = $SUBSTITUTER"
+            echo "extra-trusted-public-keys = $PUBLIC_KEYS"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
       - name: Install and setup direnv
         run: |
           curl -sfL https://direnv.net/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           direnv allow .
           direnv export gha >> "$GITHUB_ENV"
-      - name: Build packages
+      - name: Build package
         id: build
-        run: |
-          nix-fast-build --skip-cached --no-nom \
-            --flake .#packages."$(nix eval --raw --impure --expr builtins.currentSystem)" \
-            --result-file build.json --result-format json
-      - name: Print failed builds (if any)
-        run: jq '.results[] | select(.success != true)' build.json
-      - name: Push to niks3
-        # Second cache target in addition to Cachix. A failure here must not
-        # block the release branch (the build itself is fine and the packages
-        # are in Cachix), but the step stays visible as failed in the run.
-        continue-on-error: true
         env:
-          NIKS3_SERVER_URL: "https://nix-cache.ataraxiadev.com"
           NIKS3_API_TOKEN: ${{ secrets.NIKS3_API_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ -z "${NIKS3_API_TOKEN//[[:space:]]/}" ]]; then
-            echo "::warning::NIKS3_API_TOKEN is empty, skipping niks3 push. Set it in Settings → Secrets → Actions."
-            exit 0
+          NIKS3_EXTRA=()
+          if [[ -n "${NIKS3_API_TOKEN//[[:space:]]/}" ]]; then
+            # the niks3 client reads the token from a file
+            printf '%s' "$NIKS3_API_TOKEN" > "$RUNNER_TEMP/niks3-auth-token"
+            chmod 600 "$RUNNER_TEMP/niks3-auth-token"
+            export NIKS3_AUTH_TOKEN_FILE="$RUNNER_TEMP/niks3-auth-token"
+            # --push-build-closure pushes intermediate paths (not just the
+            # toplevel outputs) as soon as each build finishes, so a 6h
+            # timeout loses at most the currently-building derivation.
+            NIKS3_EXTRA=(--niks3-server "$NIKS3_SERVER_URL" --push-build-closure)
+            echo "niks3 push enabled"
+          else
+            echo "::warning::NIKS3_API_TOKEN is empty, pushing only to Cachix and FlakeHub cache. Set it in Settings → Secrets → Actions."
           fi
-          # the client reads the token from a file
-          printf '%s' "$NIKS3_API_TOKEN" > "$RUNNER_TEMP/niks3-auth-token"
-          chmod 600 "$RUNNER_TEMP/niks3-auth-token"
-          export NIKS3_AUTH_TOKEN_FILE="$RUNNER_TEMP/niks3-auth-token"
-          # every output of every successfully built package
-          jq -r '.results[] | select(.type == "BUILD" and .success == true) | .outputs | to_entries[].value' \
-            build.json | sort -u > "$RUNNER_TEMP/niks3-paths.txt"
-          if [[ ! -s "$RUNNER_TEMP/niks3-paths.txt" ]]; then
-            echo "::warning::no built store paths to push to niks3"
-            exit 0
-          fi
-          echo "Pushing $(wc -l < "$RUNNER_TEMP/niks3-paths.txt") store paths to niks3"
-          # niks3 resolves the closure itself (nix path-info --recursive) and
-          # uploads it. -r: do not run the command if the list is empty.
-          xargs -r -a "$RUNNER_TEMP/niks3-paths.txt" niks3 push
-      - name: Push release branch on success
-        # Release = last flake.lock for which every package built successfully.
-        # A failed run must never advance the release branch.
-        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        run: |
-          git push --force origin HEAD:refs/heads/release
-      - name: Notify Telegram on failure
-        # notify must never fail the job itself
+          nix-fast-build --skip-cached --no-nom "${NIKS3_EXTRA[@]}" \
+            --flake ".#packages.$(nix eval --raw --impure --expr 'builtins.currentSystem').${{ matrix.package }}" \
+            --result-file build.json --result-format json
+      - name: Print failed builds (if any)
         if: failure()
+        run: jq '.results[] | select(.success != true)' build.json
+
+  push-release:
+    name: "Push release branch"
+    needs: [matrix, build]
+    # Release = last flake.lock for which every package built successfully.
+    # A failed run must never advance the release branch. The gate only
+    # promotes locks verified by full-set runs: a push to dev (empty
+    # `packages` input, so the whole set builds), or the equivalent manual
+    # run (workflow_dispatch on dev, `packages` left empty).
+    if: >-
+      needs.build.result == 'success' &&
+      needs.matrix.result == 'success' &&
+      github.ref == 'refs/heads/dev' &&
+      (github.event_name == 'push' || needs.matrix.outputs.full_set == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Push release branch
+        run: git push --force origin HEAD:refs/heads/release
+
+  notify:
+    name: "Notify Telegram on failure"
+    needs: [build, push-release]
+    # Notify must never fail the job itself.
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send notification
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -121,5 +211,5 @@ jobs:
           echo "Telegram HTTP code: $HTTP_CODE"
           head -c 1000 /tmp/tg-response.txt 2>/dev/null; echo
           if [[ "$HTTP_CODE" != "200" ]]; then
-            echo "::warning::Telegram notify failed with HTTP $HTTP_CODE (see body above). Check TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID."
+            echo "::warning::Telegram notify failed with HTTP $HTTP_CODE (see above). Check TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID."
           fi

@@ -7,12 +7,12 @@ This streamlines the process of maintaining pre-built packages that can be quick
 ## Branches
 
 - `dev` (default): main development branch.
-- `release`: updated only by CI, **if and only if all packages built successfully** for the pinned `flake.lock`. If a build fails, `release` retains the last known-good lock.
+- `release`: updated only by CI, **if and only if all packages built successfully** for the pinned `flake.lock`. If a build fails, `release` retains the last known-good lock. Manual runs (`workflow_dispatch`) on `dev` without a `packages` input act the same way: full package set, release gate applies. Runs with a `packages` subset are for retries only and never touch `release`.
 
 Pipeline (GitHub Actions):
 
 1. `update-flake.yml` — once a week: bumps `flake.lock`, opens an auto-merge PR.
-2. `build.yml` — on every push that changes `flake.*`: builds `packages.*`, pushes them to Cachix. On success it force-updates the `release` branch; on failure it sends a Telegram notification instead.
+2. `build.yml` — on every push that changes `flake.*`: builds `packages.*`, one package per runner (matrix), pushing to Cachix, niks3 (read + write) and FlakeHub Cache as each build finishes, so an interrupted run loses at most one in-flight build and other runs skip already-cached packages. On success it force-updates the `release` branch; on failure it sends a Telegram notification instead. Manual runs (`workflow_dispatch`) can restrict the build to a comma-separated `packages` subset (retries; no release update) — leaving it empty gives a full build that can also update `release` when run on `dev`.
 
 ## Release-pinned inputs
 
