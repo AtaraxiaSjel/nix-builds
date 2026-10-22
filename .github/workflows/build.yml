@@ -122,7 +122,20 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Install and setup direnv
         run: |
-          curl -sfL https://direnv.net/install.sh | bash
+          # install.direnv.net occasionally answers 403 (rate limiting /
+          # CDN hiccups), so retry the installer a few times before giving up.
+          ATTEMPT=1
+          MAX_ATTEMPTS=5
+          until curl -sfL https://direnv.net/install.sh | bash; do
+            if [[ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]]; then
+              echo "::error::direnv install failed after $MAX_ATTEMPTS attempts"
+              exit 1
+            fi
+            WAIT=$((ATTEMPT * 5))
+            echo "::warning::direnv install failed (attempt $ATTEMPT/$MAX_ATTEMPTS), retrying in ${WAIT}s"
+            sleep "$WAIT"
+            ATTEMPT=$((ATTEMPT + 1))
+          done
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           direnv allow .
           direnv export gha >> "$GITHUB_ENV"
