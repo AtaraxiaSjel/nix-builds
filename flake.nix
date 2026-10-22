@@ -220,5 +220,12 @@
             ;
         };
       };
+      # Expose modules from inputs.
+      nixosModules = {
+        cadence = cadence.nixosModules.default;
+      };
+      homeManagerModules = {
+        cadence = cadence.homeManagerModules.default;
+      };
     };
 }
