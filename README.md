@@ -45,8 +45,10 @@ inputs.nix-builds.url = "github:ataraxiasjel/nix-builds?ref=release";
 {
   nixpkgs.overlays = [ inputs.nix-builds.overlays.default ];
 
-  # CachyOS kernel (LTO, zen4) with its out-of-tree module set
+  # CachyOS kernel (LTO) with its out-of-tree module set; the sets include
+  # the CachyOS zfs fork as `zfs_cachyos`.
   boot.kernelPackages = pkgs.cachyosKernels.linuxPackages-cachyos-latest-lto-zen4;
+  boot.zfs.package = config.boot.kernelPackages.zfs_cachyos;
 
   environment.systemPackages = [ pkgs.determinate-nix ];
   home.packages = [ pkgs.freesmlauncher ];

@@ -61,12 +61,35 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
+        # The module set for a CachyOS kernel, mirroring upstream's
+        # kernel-cachyos/packages.nix: `linuxKernel.packagesFor` extended
+        # with CachyOS's zfs fork, then wrapped by `kernelModuleLLVMOverride`
+        # (inside the wrap, so the zfs module build also gets the Clang+LTO
+        # fixes). This is what NixOS's `boot.zfs.package` consumes as
+        # `config.boot.kernelPackages.zfs_cachyos`.
         kernelPackages =
           kernel:
           let
             helpers = pkgs.callPackage "${nix-cachyos-kernel.outPath}/helpers.nix" { };
+            # Same expression and pinned source CachyOS upstream uses
+            # (zfs-cachyos/version.json: CachyOS/zfs fork, 2.4.4).
+            # All latest-family kernels use zfsVariant = "linux-cachyos".
+            zfsCachyos = pkgs.callPackage "${nix-cachyos-kernel.outPath}/zfs-cachyos" {
+              inputs = {
+                nixpkgs = { outPath = nixpkgs.outPath; };
+              };
+              variant = "linux-cachyos";
+            };
           in
-          helpers.kernelModuleLLVMOverride (pkgs.linuxKernel.packagesFor kernel);
+          helpers.kernelModuleLLVMOverride (
+            (pkgs.linuxKernel.packagesFor kernel).extend (
+              _final: prev: {
+                zfs_cachyos = zfsCachyos.override {
+                  kernel = prev.kernel;
+                };
+              }
+            )
+          );
 
         jdks = [
           pkgs.temurin-jre-bin-8
@@ -94,6 +117,13 @@
           # out-of-tree modules with Clang+LTO kernels.
           kernelPackages-x86_64-v3 = kernelPackages built.cachyos-kernel-x86_64-v3;
           kernelPackages-zen4 = kernelPackages built.cachyos-kernel-zen4;
+
+          # CachyOS's zfs fork built as a module against each kernel. These
+          # are the derivations exposed by the module sets as
+          # `zfs_cachyos` (see kernelPackages above), listed as standalone
+          # packages so CI pre-builds them.
+          zfs-cachyos-x86_64-v3 = built.kernelPackages-x86_64-v3.zfs_cachyos;
+          zfs-cachyos-zen4 = built.kernelPackages-zen4.zfs_cachyos;
 
           inherit (cadence.packages.${system}) cadence;
           inherit (quadpin.packages.${system}) quadpin;
@@ -123,6 +153,8 @@
             freesmlauncher
             obs-studio
             quadpin
+            zfs-cachyos-x86_64-v3
+            zfs-cachyos-zen4
             ;
         };
 
@@ -167,6 +199,8 @@
             freesmlauncher
             obs-studio
             quadpin
+            zfs-cachyos-x86_64-v3
+            zfs-cachyos-zen4
             ;
         };
       };
