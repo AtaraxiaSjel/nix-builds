@@ -90,7 +90,7 @@ jobs:
               --title "chore(flake): bump inputs${TAG_NOTE}" \
               --body "Auto-generated flake.lock + release-tag bump. Release branch is updated only if the build passes.")"
           fi
-          gh pr merge --auto --merge "$PR_NUM"
+          gh pr merge --auto --rebase "$PR_NUM"
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Notify Telegram on failure
