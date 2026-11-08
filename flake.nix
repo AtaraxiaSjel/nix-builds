@@ -6,11 +6,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     freesmlauncher = {
-      url = "github:FreesmTeam/FreesmLauncher?ref=2.3.1";
+      url = "github:FreesmTeam/FreesmLauncher?ref=2.3.2";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     determinate-nix = {
-      url = "github:DeterminateSystems/nix-src?ref=v3.24.1";
+      url = "github:DeterminateSystems/nix-src?ref=v3.24.2";
       inputs.nixpkgs-regression.url = "github:nix-systems/empty";
       inputs.nixpkgs-23-11.url = "github:nix-systems/empty";
       inputs.flake-parts.url = "github:nix-systems/empty";
