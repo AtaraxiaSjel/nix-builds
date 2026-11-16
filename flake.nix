@@ -151,12 +151,24 @@
           zfs-cachyos-zen4 = built.kernelPackages-zen4.zfs_cachyos;
 
           inherit (cadence.packages.${system}) cadence;
-          inherit (quadpin.packages.${system}) quadpin;
-          # The package attribute name differs from the input name here.
-          determinate-nix = determinate-nix.packages.${system}.nix;
+          quadpin = quadpin.packages.${system}.quadpin.overrideAttrs (oa: {
+            nativeBuildInputs = oa.nativeBuildInputs or [ ] ++ [ pkgs.pkg-config ];
+            buildInputs = oa.buildInputs or [ ] ++ [ pkgs.aws-lc ];
+          });
+          arkivist-unwrapped = arkivist.packages.${system}.arkivist-unwrapped.overrideAttrs (oa: {
+            nativeBuildInputs = oa.nativeBuildInputs or [ ] ++ [ pkgs.pkg-config ];
+            buildInputs = oa.buildInputs or [ ] ++ [
+              pkgs.aws-lc
+              pkgs.zstd
+            ];
+          });
           arkivist = arkivist.packages.${system}.arkivist.override {
+            inherit (built) arkivist-unwrapped;
             inherit jdks;
           };
+
+          # The package attribute name differs from the input name here.
+          determinate-nix = determinate-nix.packages.${system}.nix;
           freesmlauncher = freesmlauncher.packages.${system}.freesmlauncher.override {
             inherit jdks;
           };
